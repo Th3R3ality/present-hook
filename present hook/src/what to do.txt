@@ -1,0 +1,90 @@
+---- impl dx11
+
+++++ newFrame
+
+if (!dx11 initted)
+    create dx11 objects
+{
+  {
+    create+compile vertexshader
+
+    create input layout from vertex shader
+
+    create constant buffer
+  }
+
+  create pixel shader
+
+  create blend state
+
+  create raster state
+  
+  create depth-stencil state
+}
+---- Cleanup
+
+destroy dx11 objects {
+  
+  pIB->Release
+  pVB->Release
+  pBlendState->Release
+  pDepthStencilState->Release
+  pRasterizerState->Release
+  pPixelShader->Release
+  pVertexConstantBuffer->Release
+  pInputLayout->Release
+  pVertexShader->Release
+
+}
+
+pFactory->Release
+pd3dDevice->Release
+pd3dDeviceContext->Release
+
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+OMSetRenderTargets(1, &renderTargetView, NULL);
+---- renderdrawdata
+
+create and resize vertex&index buffers
+
+map vertex&index data
+
+setup project matrices
+
+Backup DX state
+
+setup desired DX state {
+  
+  RSSetViewports
+
+  IASetInputLayout
+  IASetVertexBuffers
+  IASetIndexBuffer
+  IASetPrimitiveTopology
+  VSSetShader
+  VSSetConstantBuffers
+  PSSetShader
+  PSSetSamplers
+  GSSetShader
+  HSSetShader
+  DSSetShader
+  CSSetShader
+
+  OMSetBlendState
+  OMSetDepthStencilState
+  RSSetState
+}
+
+do drawIndexed calls
+
+restore DX state
+
+#######################################
+
+---- impl win32
+
+++++ newFrame
+
+RECT rect = { 0, 0, 0, 0 };
+::GetClientRect(bd->hWnd, &rect);
