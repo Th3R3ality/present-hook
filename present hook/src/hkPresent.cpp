@@ -54,6 +54,21 @@ HRESULT hkPresent(IDXGISwapChain* _this, UINT SyncInterval, UINT Flags)
 		using namespace Lapis;
 		Lapis::NewFrame();
 
+		// Camera Movement
+		{
+			if (GetAsyncKeyState('A')) mainCamera.pos += Vec3::right * deltaTime;
+			if (GetAsyncKeyState('D')) mainCamera.pos -= Vec3::right * deltaTime;
+			if (GetAsyncKeyState('Q')) mainCamera.pos += Vec3::up * deltaTime;
+			if (GetAsyncKeyState('E')) mainCamera.pos -= Vec3::up * deltaTime;
+			if (GetAsyncKeyState('W')) mainCamera.pos -= Vec3::forward * deltaTime;
+			if (GetAsyncKeyState('S')) mainCamera.pos += Vec3::forward * deltaTime;
+
+			if (GetAsyncKeyState(VK_RIGHT)) mainCamera.rot += Vec3(0, 45, 0) * deltaTime;
+			if (GetAsyncKeyState(VK_LEFT))  mainCamera.rot -= Vec3(0, 45, 0) * deltaTime;
+			if (GetAsyncKeyState(VK_UP))    mainCamera.rot -= Vec3(45, 0, 0) * deltaTime;
+			if (GetAsyncKeyState(VK_DOWN))  mainCamera.rot += Vec3(45, 0, 0) * deltaTime;
+		}
+
 		Lapis::Draw::D2::Triangle(100, { 500,100 }, 300, { 0.5,0.5,0.5,0.5 });
 
 		Lapis::Draw::D3::Cube(Transform(Vec3::forward*3 + -Vec3::up, 0, 1), { 0.92, 0.26, .27, 1 });

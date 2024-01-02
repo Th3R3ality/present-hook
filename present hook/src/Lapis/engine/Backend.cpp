@@ -450,7 +450,7 @@ namespace Lapis
             gcb.elapsedTime = elapsedTime;
             gcb.deltaTime = deltaTime;
 
-            float L = 0, T = 0, R = SCREEN_WIDTH, B = SCREEN_HEIGHT;
+            float L = 0, T = 0, R = clientRect.width, B = clientRect.height;
             DirectX::XMMATRIX m = {
                  2.0f / (R - L),   0.0f,           0.0f,       0.0f ,
                  0.0f,             2.0f / (T - B), 0.0f,       0.0f ,
