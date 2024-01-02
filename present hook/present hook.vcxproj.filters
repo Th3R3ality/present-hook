@@ -54,6 +54,36 @@
     <ClInclude Include="src\hkResizeBuffers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\Lapis\engine\Backend.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Lapis\engine\GlobalDefines.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Lapis\engine\Helpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Lapis\engine\InternalTypes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Lapis\engine\LapisEngine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Lapis\engine\LapisTypes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Lapis\engine\shaders\DefaultShaders.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Lapis\engine\Draw\D2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Lapis\engine\Draw\D3.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Lapis\utils\hsl-to-rgb.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\dllmain.cpp">
@@ -86,8 +116,39 @@
     <ClCompile Include="src\hkResizeBuffers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Lapis\engine\Backend.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Lapis\engine\InternalTypes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Lapis\engine\LapisEngine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Lapis\engine\LapisTypes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Lapis\engine\Draw\D2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Lapis\engine\Draw\D3.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Lapis\utils\hsl-to-rgb.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Text Include="src\what to do.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="src\Lapis\engine\shaders\DEFAULTSHADER__CIRCLE_pixel.hlsl" />
+    <FxCompile Include="src\Lapis\engine\shaders\DEFAULTSHADER__UI_pixel.hlsl" />
+    <FxCompile Include="src\Lapis\engine\shaders\DEFAULTSHADER__UI_vertex.hlsl" />
+    <FxCompile Include="src\Lapis\engine\shaders\DEFAULTSHADER__UNLIT_pixel.hlsl" />
+    <FxCompile Include="src\Lapis\engine\shaders\DEFAULTSHADER__UNLIT3D_vertex.hlsl" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Lapis\engine\shaders\DefaultStructs.hlsli" />
   </ItemGroup>
 </Project>

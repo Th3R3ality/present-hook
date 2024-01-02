@@ -30,12 +30,10 @@ void mainThread(HMODULE hModule);
 uintptr_t origPresent{ 0 };
 
 
-#define safe_release(p) if (p) { p->Release(); p = nullptr; }
 
 BOOL APIENTRY DllMain( HMODULE hModule,
                        DWORD  ul_reason_for_call,
-                       LPVOID lpReserved
-                     )
+                       LPVOID lpReserved )
 {
     switch (ul_reason_for_call)
     {

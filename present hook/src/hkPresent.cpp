@@ -9,6 +9,8 @@
 #include "imgui-master/backends/imgui_impl_win32.h"
 #include "imgui-master/backends/imgui_impl_dx11.h"
 
+#include "Lapis/engine/LapisEngine.h"
+
 ID3D11Device* device;
 ID3D11DeviceContext* deviceContext;
 ID3D11RenderTargetView* renderTargetView;
@@ -18,11 +20,17 @@ WNDPROC origWndProcHandler;
 
 HWND hwnd{};
 bool ShowMenu = false;
+bool doDebugPrint = false;
 
 HRESULT hkPresent(IDXGISwapChain* _this, UINT SyncInterval, UINT Flags)
 {
-	std::cout << "hkPresent\n";
-	std::cout << std::format("Swapchain: {:#x}    SyncInterval: {}    Flags: {}\n", (uintptr_t)_this, SyncInterval, Flags);
+	static int presentCalls = -1;
+	presentCalls += 1;
+
+	doDebugPrint = (presentCalls % 60 == 0);
+
+	//std::cout << "hkPresent\n";
+	//std::cout << std::format("Swapchain: {:#x}    SyncInterval: {}    Flags: {}\n", (uintptr_t)_this, SyncInterval, Flags);
 	if (ejecting) {
 		(WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)origWndProcHandler);
 
@@ -66,30 +74,30 @@ HRESULT hkPresent(IDXGISwapChain* _this, UINT SyncInterval, UINT Flags)
 	
 
 	if ((GetAsyncKeyState(VK_INSERT) & 0x0001)) {
-		std::cout << "toggling\n";
 		ShowMenu = !ShowMenu;
+		std::cout << "toggling : " << ShowMenu << "\n";
 	}
 	
 	ImGui_ImplDX11_NewFrame();
-	std::cout << "dx11 newframe\n";
+	//std::cout << "dx11 newframe\n";
 	ImGui_ImplWin32_NewFrame();
-	std::cout << "win32 newframe\n";
+	//std::cout << "win32 newframe\n";
 	ImGui::NewFrame();
-	std::cout << "imgui newframe\n";
+	//std::cout << "imgui newframe\n";
 
 	{
 		ImGui::Begin(ShowMenu ? " + open + " : " - closed - ");
-		std::cout << "begin\n";
+		//std::cout << "begin\n";
 		ImGui::End();
-		std::cout << "end\n";
+		//std::cout << "end\n";
 	}
 
 	ImGui::Render();
-	std::cout << "imgui Render\n";
+	//std::cout << "imgui Render\n";
 	deviceContext->OMSetRenderTargets(1, &renderTargetView, NULL);
-	std::cout << "omsetrendertargets\n";
+	//std::cout << "omsetrendertargets\n";
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-	std::cout << "dx11 renderdrawdata\n";
+	//std::cout << "dx11 renderdrawdata\n";
 
 	bool forceVSync = false;
 	if (forceVSync)
@@ -101,14 +109,14 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 LRESULT CALLBACK hWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	std::cout << "hooked WndProc\n";
+	//std::cout << "hooked WndProc\n";
 
-	ImGuiIO& io = ImGui::GetIO();
-	POINT mPos;
-	GetCursorPos(&mPos);
-	ScreenToClient(hwnd, &mPos);
-	ImGui::GetIO().MousePos.x = mPos.x;
-	ImGui::GetIO().MousePos.y = mPos.y;
+	//ImGuiIO& io = ImGui::GetIO();
+	//POINT mPos;
+	//GetCursorPos(&mPos);
+	//ScreenToClient(hwnd, &mPos);
+	//ImGui::GetIO().MousePos.x = mPos.x;
+	//ImGui::GetIO().MousePos.y = mPos.y;
 
 	ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
 	if (ShowMenu) {

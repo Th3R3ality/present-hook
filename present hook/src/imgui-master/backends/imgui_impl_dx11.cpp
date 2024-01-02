@@ -45,6 +45,8 @@
 #pragma comment(lib, "d3dcompiler") // Automatically link with d3dcompiler.lib as we are using D3DCompile() below.
 #endif
 
+#include "../../global.h"
+
 // DirectX11 data
 struct ImGui_ImplDX11_Data
 {
@@ -94,6 +96,7 @@ static void ImGui_ImplDX11_SetupRenderState(ImDrawData* draw_data, ID3D11DeviceC
     vp.MaxDepth = 1.0f;
     vp.TopLeftX = vp.TopLeftY = 0;
     ctx->RSSetViewports(1, &vp);
+    if (doDebugPrint == true) std::cout << "vp" << " : " << vp.Width << " : " << vp.Height << "\n";
 
     // Setup shader and vertex buffers
     unsigned int stride = sizeof(ImDrawVert);
@@ -129,6 +132,7 @@ void ImGui_ImplDX11_RenderDrawData(ImDrawData* draw_data)
     ID3D11DeviceContext* ctx = bd->pd3dDeviceContext;
 
     // Create and grow vertex/index buffers if needed
+    debugPrint(draw_data->TotalVtxCount);
     if (!bd->pVB || bd->VertexBufferSize < draw_data->TotalVtxCount)
     {
         if (bd->pVB) { bd->pVB->Release(); bd->pVB = nullptr; }
@@ -143,6 +147,7 @@ void ImGui_ImplDX11_RenderDrawData(ImDrawData* draw_data)
         if (bd->pd3dDevice->CreateBuffer(&desc, nullptr, &bd->pVB) < 0)
             return;
     }
+    debugPrint(draw_data->TotalIdxCount);
     if (!bd->pIB || bd->IndexBufferSize < draw_data->TotalIdxCount)
     {
         if (bd->pIB) { bd->pIB->Release(); bd->pIB = nullptr; }
@@ -165,6 +170,8 @@ void ImGui_ImplDX11_RenderDrawData(ImDrawData* draw_data)
         return;
     ImDrawVert* vtx_dst = (ImDrawVert*)vtx_resource.pData;
     ImDrawIdx* idx_dst = (ImDrawIdx*)idx_resource.pData;
+    debugPrint(draw_data->CmdListsCount);
+    /*
     for (int n = 0; n < draw_data->CmdListsCount; n++)
     {
         const ImDrawList* cmd_list = draw_data->CmdLists[n];
@@ -173,6 +180,17 @@ void ImGui_ImplDX11_RenderDrawData(ImDrawData* draw_data)
         vtx_dst += cmd_list->VtxBuffer.Size;
         idx_dst += cmd_list->IdxBuffer.Size;
     }
+    */
+    ImDrawVert vbData[3] = {
+        {{ 50,  50}, {0.127929688, 0.00781250000}, 0xFF0000FF },
+        {{500,  50}, {0.127929688, 0.00781250000}, 0xFF00FF00 },
+        {{500, 500}, {0.127929688, 0.00781250000}, 0xFFFF0000 }
+    };
+    ImDrawIdx ibData[3] = {0,1,2};
+    
+    memcpy(vtx_dst, vbData, sizeof(vbData));
+    memcpy(idx_dst, ibData, sizeof(ibData));
+    
     ctx->Unmap(bd->pVB, 0);
     ctx->Unmap(bd->pIB, 0);
 
@@ -276,12 +294,22 @@ void ImGui_ImplDX11_RenderDrawData(ImDrawData* draw_data)
 
                 // Apply scissor/clipping rectangle
                 const D3D11_RECT r = { (LONG)clip_min.x, (LONG)clip_min.y, (LONG)clip_max.x, (LONG)clip_max.y };
+                if (doDebugPrint == true) std::cout << "r"
+                    << " : " << r.left
+                    << " : " << r.top
+                    << " : " << r.right
+                    << " : " << r.bottom << "\n";
                 ctx->RSSetScissorRects(1, &r);
 
                 // Bind texture, Draw
                 ID3D11ShaderResourceView* texture_srv = (ID3D11ShaderResourceView*)pcmd->GetTexID();
                 ctx->PSSetShaderResources(0, 1, &texture_srv);
-                ctx->DrawIndexed(pcmd->ElemCount, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset);
+                debugPrint(pcmd->ElemCount);
+                debugPrint(pcmd->IdxOffset + global_idx_offset);
+                debugPrint(pcmd->VtxOffset + global_vtx_offset);
+                //ctx->DrawIndexed(pcmd->ElemCount, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset);
+                //ctx->DrawIndexed(3, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset);
+                ctx->Draw(3, 0);
             }
         }
         global_idx_offset += cmd_list->IdxBuffer.Size;
