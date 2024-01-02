@@ -141,8 +141,7 @@ namespace Lapis
 
             // Create the blending setup
             {
-                D3D11_BLEND_DESC desc;
-                ZeroMemory(&desc, sizeof(desc));
+                D3D11_BLEND_DESC desc{};
                 desc.AlphaToCoverageEnable = false;
                 desc.RenderTarget[0].BlendEnable = true;
                 desc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
@@ -157,8 +156,7 @@ namespace Lapis
 
             // Create the rasterizer state
             {
-                D3D11_RASTERIZER_DESC desc;
-                ZeroMemory(&desc, sizeof(desc));
+                D3D11_RASTERIZER_DESC desc{};
                 desc.FillMode = D3D11_FILL_SOLID;
                 desc.CullMode = D3D11_CULL_NONE;
                 desc.ScissorEnable = true;
@@ -168,15 +166,14 @@ namespace Lapis
 
             // Create depth-stencil State
             {
-                D3D11_DEPTH_STENCIL_DESC desc;
-                ZeroMemory(&desc, sizeof(desc));
-                desc.DepthEnable = false;
+                D3D11_DEPTH_STENCIL_DESC desc{};
+                desc.DepthEnable = true;
                 desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-                desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-                desc.StencilEnable = false;
-                desc.FrontFace.StencilFailOp = desc.FrontFace.StencilDepthFailOp = desc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-                desc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-                desc.BackFace = desc.FrontFace;
+                desc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+                //desc.StencilEnable = false;
+                //desc.FrontFace.StencilFailOp = desc.FrontFace.StencilDepthFailOp = desc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+                //desc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+                //desc.BackFace = desc.FrontFace;
                 device->CreateDepthStencilState(&desc, &depthStencilState);
             }
         }
@@ -370,6 +367,7 @@ namespace Lapis
                 deviceContext->IAGetInputLayout(&old.InputLayout);
             }
 
+            deviceContext->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
             SetupD3D11State();
 
