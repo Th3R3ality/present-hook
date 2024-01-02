@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#include "../../global.h"
+
 #include "GlobalDefines.h"
 
 #include "shaders/DefaultShaders.h"
@@ -12,18 +14,32 @@ namespace Lapis
 {
 	namespace Backend
 	{
-        HWND hwnd;
+        ///////////////////////
+        /*    EXTERN VARS    */
 
+        std::chrono::steady_clock::duration elapsedDuration{};
+        std::chrono::steady_clock::duration deltaDuration{};
+        std::chrono::steady_clock::duration initDuration{};
+        std::unordered_map<std::string, std::shared_ptr<InternalMaterial>> builtinMaterials{};
+
+        ///////////////////////
+        /*  BACKEND GLOBALS  */
+
+        HWND hwnd;
+        Vec4 clientRect;
+
+		//IDXGISwapChain* swapchain;
         IDXGIFactory* factory;
-		IDXGISwapChain* swapchain; // the pointer to the swap chain interface
-		ID3D11Device* device; // the pointer to our Direct3D device interface
-		ID3D11DeviceContext* deviceContext; // the pointer to our Direct3D device context
-		ID3D11RenderTargetView* frameBuffer;    // global declaration
-		ID3D11DepthStencilView* depthBufferView;
+		ID3D11Device* device;
+		ID3D11DeviceContext* deviceContext;
+		ID3D11RenderTargetView* renderTargetView;
+		ID3D11DepthStencilView* depthStencilView;
 		ID3D11InputLayout* inputLayout;
 		ID3D11Buffer* constantBuffer;
 		ID3D11Buffer* vertexBuffer;
 		ID3D11BlendState* blendState;
+        ID3D11RasterizerState* rasterizerState;
+        ID3D11DepthStencilState* depthStencilState;
 
 		GlobalConstantBuffer gcb;
 
@@ -32,23 +48,37 @@ namespace Lapis
         std::vector<Vertex> LapisVertexVector{};
         std::vector<InternalLapisCommand> LapisCommandVector{};
 
-        std::chrono::steady_clock::duration elapsedDuration{};
-        std::chrono::steady_clock::duration deltaDuration{};
-        std::chrono::steady_clock::duration initDuration{};
-		std::unordered_map<std::string, std::shared_ptr<InternalMaterial>> builtinMaterials{};
-
-
-        void InitBackendInternal(ID3D11Device* _device, ID3D11DeviceContext* _deviceContext, HWND _hwnd)
+        void InitBackendInternal(IDXGISwapChain* _swapchain)
         {
+            DXGI_SWAP_CHAIN_DESC swapChainDesc;
+            _swapchain->GetDesc(&swapChainDesc);
+            hwnd = swapChainDesc.OutputWindow; // the g_hwnd
+            std::cout << "Lapis Init got hwnd : " << hwnd << "\n";
+            
+
+            RECT rect;
+            GetClientRect(hwnd, &rect);
+            clientRect = rect;
+
             initDuration = std::chrono::high_resolution_clock::now().time_since_epoch();
-               
-             // Get factory from device
+            InitD3D11Internal(_swapchain);
+        }
+        void InitD3D11Internal(IDXGISwapChain* _swapchain)
+        {
+            //Grab Device, DeviceContext, Factory and Create RenderTargetView
             {
+                ID3D11Device* _device = nullptr;
+                ID3D11DeviceContext* _deviceContext = nullptr;
+                if (FAILED(GetDeviceAndCtxFromSwapchain(_swapchain, &_device, &_deviceContext)))
+                    return;
+
+
+                // Get factory from device, set global backend vars, and add ref counts
                 IDXGIDevice* pDXGIDevice = nullptr;
                 IDXGIAdapter* pDXGIAdapter = nullptr;
                 IDXGIFactory* pFactory = nullptr;
 
-                if (device->QueryInterface(IID_PPV_ARGS(&pDXGIDevice)) == S_OK)
+                if (_device->QueryInterface(IID_PPV_ARGS(&pDXGIDevice)) == S_OK)
                     if (pDXGIDevice->GetParent(IID_PPV_ARGS(&pDXGIAdapter)) == S_OK)
                         if (pDXGIAdapter->GetParent(IID_PPV_ARGS(&pFactory)) == S_OK) {
                             device = _device;
@@ -59,155 +89,198 @@ namespace Lapis
                 if (pDXGIAdapter) pDXGIAdapter->Release();
                 device->AddRef();
                 deviceContext->AddRef();
+                
+
+                // Create RenderTargetView
+                ID3D11Texture2D* backBuffer = nullptr;
+                if (FAILED(_swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer)))
+                    return;
+                device->CreateRenderTargetView(backBuffer, nullptr, &renderTargetView);
+                backBuffer->Release();
+
+                // Create DepthStencilView
+                D3D11_TEXTURE2D_DESC depthBufferDesc;
+                backBuffer->GetDesc(&depthBufferDesc); // copy from framebuffer properties
+                depthBufferDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+                depthBufferDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+                ID3D11Texture2D* depthBuffer;
+                device->CreateTexture2D(&depthBufferDesc, nullptr, &depthBuffer);
+                device->CreateDepthStencilView(depthBuffer, nullptr, &depthStencilView);
+
+                
             }
 
-            InitD3D11Internal();
-        }
-        void InitD3D11Internal()
-        {
-            DXGI_SWAP_CHAIN_DESC scd;
-
-            ZeroMemory(&scd, sizeof(DXGI_SWAP_CHAIN_DESC));
-
-            scd.BufferCount = 1;                                    // one back buffer
-            scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;     // use 32-bit color
-            scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;      // how swap chain is to be used
-            scd.OutputWindow = hwnd;                                // the window to be used
-            scd.SampleDesc.Count = 4;                               // how many multisamples
-            scd.Windowed = TRUE;                                    // windowed/full-screen mode
-            scd.BufferDesc.Width = SCREEN_WIDTH;
-            scd.BufferDesc.Height = SCREEN_HEIGHT;
-            scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-
-            // create a device, device context and swap chain using the information in the scd struct
-            D3D11CreateDeviceAndSwapChain(NULL,
-                D3D_DRIVER_TYPE_HARDWARE,
-                NULL,
-                NULL,
-                NULL,
-                NULL,
-                D3D11_SDK_VERSION,
-                &scd,
-                &swapchain,
-                &device,
-                NULL,
-                &deviceContext);
-
-            std::cout << "created device and swapchain\n";
-
-            // get the address of the back buffer
-            ID3D11Texture2D* pBackBuffer = nullptr;
-            swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
-
-            // use the back buffer address to create the render target
-            device->CreateRenderTargetView(pBackBuffer, NULL, &frameBuffer);
-            pBackBuffer->Release();
-
-            // set the render target as the back buffer
-            deviceContext->OMSetRenderTargets(1, &frameBuffer, NULL);
-
-            InitDefaultShaders();
-            deviceContext->VSSetShader(builtinMaterials["UI"]->vertexShader, 0, 0);
-            deviceContext->PSSetShader(builtinMaterials["UI"]->pixelShader, 0, 0);
-
-            D3D11_INPUT_ELEMENT_DESC ied[] =
+            // Create Shaders
             {
-                {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-                {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-                {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-                {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-            };
+                InitDefaultShaders();
+            }
 
-            device->CreateInputLayout(ied, sizeof(ied) / sizeof(ied[0]), DEFAULTSHADER__UI_vertex, sizeof(DEFAULTSHADER__UI_vertex), &inputLayout);
-            deviceContext->IASetInputLayout(inputLayout);
+            // Create InputLayout
+            {
+                D3D11_INPUT_ELEMENT_DESC ied[] =
+                {
+                    {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, offsetof(Vertex, pos),    D3D11_INPUT_PER_VERTEX_DATA, 0},
+                    {"COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(Vertex, color),  D3D11_INPUT_PER_VERTEX_DATA, 0},
+                    {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, offsetof(Vertex, uv),     D3D11_INPUT_PER_VERTEX_DATA, 0},
+                    {"NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,    0, offsetof(Vertex, normal), D3D11_INPUT_PER_VERTEX_DATA, 0},
+                };
+                device->CreateInputLayout(ied, sizeof(ied) / sizeof(ied[0]), DEFAULTSHADER__UI_vertex, sizeof(DEFAULTSHADER__UI_vertex), &inputLayout);
+            }
 
+            // Create Constant Buffer
+            {
+                D3D11_BUFFER_DESC cbDesc{};
+                cbDesc.ByteWidth = sizeof(GlobalConstantBuffer);
+                cbDesc.Usage = D3D11_USAGE_DYNAMIC;
+                cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+                cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+                cbDesc.MiscFlags = 0;
+                cbDesc.StructureByteStride = 0;
+                device->CreateBuffer(&cbDesc, NULL, &constantBuffer);
+            }
 
-            D3D11_BUFFER_DESC cbDesc{};
-            cbDesc.ByteWidth = sizeof(GlobalConstantBuffer);
-            cbDesc.Usage = D3D11_USAGE_DYNAMIC;
-            cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-            cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-            cbDesc.MiscFlags = 0;
-            cbDesc.StructureByteStride = 0;
+            // Create the blending setup
+            {
+                D3D11_BLEND_DESC desc;
+                ZeroMemory(&desc, sizeof(desc));
+                desc.AlphaToCoverageEnable = false;
+                desc.RenderTarget[0].BlendEnable = true;
+                desc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+                desc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+                desc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+                desc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+                desc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+                desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+                desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+                device->CreateBlendState(&desc, &blendState);
+            }
 
-            device->CreateBuffer(&cbDesc, NULL, &constantBuffer);
-            deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
-            deviceContext->PSSetConstantBuffers(0, 1, &constantBuffer);
+            // Create the rasterizer state
+            {
+                D3D11_RASTERIZER_DESC desc;
+                ZeroMemory(&desc, sizeof(desc));
+                desc.FillMode = D3D11_FILL_SOLID;
+                desc.CullMode = D3D11_CULL_NONE;
+                desc.ScissorEnable = true;
+                desc.DepthClipEnable = true;
+                device->CreateRasterizerState(&desc, &rasterizerState);
+            }
 
-            // Setup the viewport
-            D3D11_VIEWPORT vp;
-            vp.Width = (FLOAT)SCREEN_WIDTH;
-            vp.Height = (FLOAT)SCREEN_HEIGHT;
-            vp.MinDepth = 0.0f; vp.TopLeftX = 0;
-            vp.MaxDepth = 1.0f; vp.TopLeftY = 0;
+            // Create depth-stencil State
+            {
+                D3D11_DEPTH_STENCIL_DESC desc;
+                ZeroMemory(&desc, sizeof(desc));
+                desc.DepthEnable = false;
+                desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+                desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+                desc.StencilEnable = false;
+                desc.FrontFace.StencilFailOp = desc.FrontFace.StencilDepthFailOp = desc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+                desc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+                desc.BackFace = desc.FrontFace;
+                device->CreateDepthStencilState(&desc, &depthStencilState);
+            }
+        }
+        void SetupD3D11State()
+        {
+            deviceContext->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
+
+            // Setup viewport
+            D3D11_VIEWPORT vp{};
+            vp.Width = clientRect.width;
+            vp.Height = clientRect.height;
+            vp.MinDepth = 0.0f;
+            vp.MaxDepth = 1.0f;
+            vp.TopLeftX = vp.TopLeftY = 0;
             deviceContext->RSSetViewports(1, &vp);
 
-            D3D11_RECT rect = {};
-            rect.left = 0;
-            rect.right = SCREEN_WIDTH;
-            rect.top = 0;
-            rect.bottom = SCREEN_HEIGHT;
-            deviceContext->RSSetScissorRects(1, &rect);
+            // Setup shader and vertex buffers
+            unsigned int stride = sizeof(Vertex);
+            unsigned int offset = 0;
+            deviceContext->IASetInputLayout(inputLayout);
+            deviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+            //deviceContext->IASetIndexBuffer(bd->pIB, sizeof(Index) == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT, 0);
+            deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            deviceContext->VSSetShader(builtinMaterials["UI"]->vertexShader, nullptr, 0);
+            deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
+            deviceContext->PSSetShader(builtinMaterials["UI"]->pixelShader, nullptr, 0);
+            deviceContext->PSSetConstantBuffers(0, 1, &constantBuffer);
+            //deviceContext->PSSetSamplers(0, 1, &bd->pFontSampler);
+            deviceContext->GSSetShader(nullptr, nullptr, 0);
+            deviceContext->HSSetShader(nullptr, nullptr, 0); // In theory we should backup and restore this as well.. very infrequently used..
+            deviceContext->DSSetShader(nullptr, nullptr, 0); // In theory we should backup and restore this as well.. very infrequently used..
+            deviceContext->CSSetShader(nullptr, nullptr, 0); // In theory we should backup and restore this as well.. very infrequently used..
 
-            D3D11_RASTERIZER_DESC rasterizerDesc = {};
-            rasterizerDesc.FillMode = D3D11_FILL_SOLID;
-            rasterizerDesc.CullMode = D3D11_CULL_NONE;
-            rasterizerDesc.ScissorEnable = true;
-            rasterizerDesc.DepthClipEnable = true;
-
-            ID3D11RasterizerState* pRasterizerState;
-            device->CreateRasterizerState(&rasterizerDesc, &pRasterizerState);
-            deviceContext->RSSetState(pRasterizerState);
-
-            D3D11_TEXTURE2D_DESC depthBufferDesc;
-            pBackBuffer->GetDesc(&depthBufferDesc); // copy from framebuffer properties
-            depthBufferDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-            depthBufferDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-            ID3D11Texture2D* depthBuffer;
-            device->CreateTexture2D(&depthBufferDesc, nullptr, &depthBuffer);
-            device->CreateDepthStencilView(depthBuffer, nullptr, &depthBufferView);
-
-            deviceContext->OMSetRenderTargets(1, &frameBuffer, depthBufferView);
-
-            D3D11_DEPTH_STENCIL_DESC depthStencilDesc = {};
-            depthStencilDesc.DepthEnable = TRUE;
-            depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-            depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
-            ID3D11DepthStencilState* depthStencilState;
-            device->CreateDepthStencilState(&depthStencilDesc, &depthStencilState);
-
+            // Setup blend state
+            const float blend_factor[4] = { 0.f, 0.f, 0.f, 0.f };
+            deviceContext->OMSetBlendState(blendState, blend_factor, 0xffffffff);
             deviceContext->OMSetDepthStencilState(depthStencilState, 0);
-
-            D3D11_BLEND_DESC desc;
-            ZeroMemory(&desc, sizeof(desc));
-            desc.AlphaToCoverageEnable = false;
-            desc.RenderTarget[0].BlendEnable = true;
-            desc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-            desc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-            desc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-            desc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_INV_DEST_ALPHA;
-            desc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
-            desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-            desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-            device->CreateBlendState(&desc, &blendState);
-
-            deviceContext->OMSetBlendState(blendState, nullptr, 0xffffffff); // use default blend mode (i.e. disable)
+            deviceContext->RSSetState(rasterizerState);
         }
         void CleanD3D11()
         {
-            swapchain->SetFullscreenState(0, NULL);
+            safe_release(renderTargetView);
+            safe_release(depthStencilView);
 
-            safe_release(inputLayout);
+            safe_release(factory);
+            safe_release(device);
+            safe_release(deviceContext);
 
             builtinMaterials.clear();
 
-            safe_release(vertexBuffer);
-            safe_release(frameBuffer);
+            safe_release(inputLayout);
+            safe_release(constantBuffer);
+            safe_release(blendState);
+            safe_release(rasterizerState);
+            safe_release(depthStencilState);
 
-            safe_release(swapchain);
-            safe_release(device);
-            safe_release(deviceContext);
+            safe_release(vertexBuffer);
         }
+
+        void DestroyViews()
+        {
+            deviceContext->OMSetRenderTargets(0, 0, 0);
+            safe_release(renderTargetView);
+            safe_release(depthStencilView);
+            renderTargetView = nullptr;
+            depthStencilView = nullptr;
+        }
+        void CreateViews(IDXGISwapChain* _swapchain)
+        {
+            ID3D11Texture2D* pBuffer;
+            _swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&pBuffer);
+            if (pBuffer) {
+                device->CreateRenderTargetView(pBuffer, NULL, &renderTargetView);
+            
+                D3D11_TEXTURE2D_DESC depthBufferDesc;
+                pBuffer->GetDesc(&depthBufferDesc); // copy from framebuffer properties
+                depthBufferDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+                depthBufferDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+                ID3D11Texture2D* depthBuffer;
+                device->CreateTexture2D(&depthBufferDesc, nullptr, &depthBuffer);
+                if (depthBuffer)
+                    device->CreateDepthStencilView(depthBuffer, nullptr, &depthStencilView);
+
+                safe_release(depthBuffer);
+            }
+            safe_release(pBuffer);
+        }
+
+
+        void WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+        {
+            std::cout << "Lapis::WndProcHandler()\n";
+
+            switch (msg) {
+            case WM_SIZE:
+                clientRect.width = LOWORD(lParam);
+                clientRect.height = HIWORD(lParam);
+                std::cout << "resized clientRect: w" << clientRect.width << " h" << clientRect.height << "\n";
+                break;
+            default:
+                break;
+            }
+        }
+
 
         void NewFrame()
         {
@@ -224,6 +297,7 @@ namespace Lapis
         }
         void RenderFrame()
         {
+            if (doDebugPrint) std::cout << "\nLapis::RenderFrame()\n";
             static int VBufferSize = 0;
             if (VertexVectorCapacity > VBufferSize) {
 
@@ -248,29 +322,96 @@ namespace Lapis
 
             RemapSubResource(vertexBuffer, LapisVertexVector.data(), sizeof(Vertex) * LapisVertexVector.size());
 
-#if CLEAR_RENDER_TARGET_VIEW == 1
-            static float h = 0;
-            h += Lapis::deltaTime;
-            if (h > 360) h -= 360;
-            auto color = hsl2rgb((int)h, 1.0f, 0.7f, 1.0f);
-            deviceContext->ClearRenderTargetView(frameBuffer, (FLOAT*)&color);
-#endif
-#if CLEAR_DEPTH_STENCIL_VIEW == 1
-            deviceContext->ClearDepthStencilView(depthBufferView, D3D11_CLEAR_DEPTH, 1.0f, 0);
-#endif
+            if (doDebugPrint) std::cout << "backup dx\n";
+            // Backup DX state that will be modified to restore it afterwards (unfortunately this is very ugly looking and verbose. Close your eyes!)
+            struct BACKUP_DX11_STATE
+            {
+                UINT                        ScissorRectsCount, ViewportsCount;
+                D3D11_RECT                  ScissorRects[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+                D3D11_VIEWPORT              Viewports[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+                ID3D11RasterizerState* RS;
+                ID3D11BlendState* BlendState;
+                FLOAT                       BlendFactor[4];
+                UINT                        SampleMask;
+                UINT                        StencilRef;
+                ID3D11DepthStencilState* DepthStencilState;
+                ID3D11ShaderResourceView* PSShaderResource;
+                ID3D11SamplerState* PSSampler;
+                ID3D11PixelShader* PS;
+                ID3D11VertexShader* VS;
+                ID3D11GeometryShader* GS;
+                UINT                        PSInstancesCount, VSInstancesCount, GSInstancesCount;
+                ID3D11ClassInstance* PSInstances[256], * VSInstances[256], * GSInstances[256];   // 256 is max according to PSSetShader documentation
+                D3D11_PRIMITIVE_TOPOLOGY    PrimitiveTopology;
+                ID3D11Buffer* IndexBuffer, * VertexBuffer, * VSConstantBuffer;
+                UINT                        IndexBufferOffset, VertexBufferStride, VertexBufferOffset;
+                DXGI_FORMAT                 IndexBufferFormat;
+                ID3D11InputLayout* InputLayout;
+            };
+            BACKUP_DX11_STATE old = {};
+            {
+                old.ScissorRectsCount = old.ViewportsCount = D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
+                deviceContext->RSGetScissorRects(&old.ScissorRectsCount, old.ScissorRects);
+                deviceContext->RSGetViewports(&old.ViewportsCount, old.Viewports);
+                deviceContext->RSGetState(&old.RS);
+                deviceContext->OMGetBlendState(&old.BlendState, old.BlendFactor, &old.SampleMask);
+                deviceContext->OMGetDepthStencilState(&old.DepthStencilState, &old.StencilRef);
+                deviceContext->PSGetShaderResources(0, 1, &old.PSShaderResource);
+                deviceContext->PSGetSamplers(0, 1, &old.PSSampler);
+                old.PSInstancesCount = old.VSInstancesCount = old.GSInstancesCount = 256;
+                deviceContext->PSGetShader(&old.PS, old.PSInstances, &old.PSInstancesCount);
+                deviceContext->VSGetShader(&old.VS, old.VSInstances, &old.VSInstancesCount);
+                deviceContext->VSGetConstantBuffers(0, 1, &old.VSConstantBuffer);
+                deviceContext->GSGetShader(&old.GS, old.GSInstances, &old.GSInstancesCount);
 
-            UINT stride = sizeof(Vertex);
-            UINT offset = 0;
-            deviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+                deviceContext->IAGetPrimitiveTopology(&old.PrimitiveTopology);
+                deviceContext->IAGetIndexBuffer(&old.IndexBuffer, &old.IndexBufferFormat, &old.IndexBufferOffset);
+                deviceContext->IAGetVertexBuffers(0, 1, &old.VertexBuffer, &old.VertexBufferStride, &old.VertexBufferOffset);
+                deviceContext->IAGetInputLayout(&old.InputLayout);
+            }
+
+
+            SetupD3D11State();
 
             UpdateGlobalConstantBuffer();
 
+            const D3D11_RECT r = { (LONG)clientRect.x, (LONG)clientRect.y, (LONG)clientRect.width, (LONG)clientRect.height };
+            deviceContext->RSSetScissorRects(1, &r);
+            debugPrint(clientRect.x);
+            debugPrint(clientRect.y);
+            debugPrint(clientRect.width);
+            debugPrint(clientRect.height);
+
+
+
             for (auto& internalCommand : LapisCommandVector) {
-                {
-                    DrawCommand(internalCommand);
-                }
+                
+                if (doDebugPrint) std::cout << "DrawCommand\n";
+                DrawCommand(internalCommand);
+                
             }
-            swapchain->Present(0, 0);
+            
+            if (doDebugPrint) std::cout << "restore dx\n";
+            // Restore modified DX state
+            {
+                deviceContext->RSSetScissorRects(old.ScissorRectsCount, old.ScissorRects);
+                deviceContext->RSSetViewports(old.ViewportsCount, old.Viewports);
+                deviceContext->RSSetState(old.RS); if (old.RS) old.RS->Release();
+                deviceContext->OMSetBlendState(old.BlendState, old.BlendFactor, old.SampleMask); if (old.BlendState) old.BlendState->Release();
+                deviceContext->OMSetDepthStencilState(old.DepthStencilState, old.StencilRef); if (old.DepthStencilState) old.DepthStencilState->Release();
+                deviceContext->PSSetShaderResources(0, 1, &old.PSShaderResource); if (old.PSShaderResource) old.PSShaderResource->Release();
+                deviceContext->PSSetSamplers(0, 1, &old.PSSampler); if (old.PSSampler) old.PSSampler->Release();
+                deviceContext->PSSetShader(old.PS, old.PSInstances, old.PSInstancesCount); if (old.PS) old.PS->Release();
+                for (UINT i = 0; i < old.PSInstancesCount; i++) if (old.PSInstances[i]) old.PSInstances[i]->Release();
+                deviceContext->VSSetShader(old.VS, old.VSInstances, old.VSInstancesCount); if (old.VS) old.VS->Release();
+                deviceContext->VSSetConstantBuffers(0, 1, &old.VSConstantBuffer); if (old.VSConstantBuffer) old.VSConstantBuffer->Release();
+                deviceContext->GSSetShader(old.GS, old.GSInstances, old.GSInstancesCount); if (old.GS) old.GS->Release();
+                for (UINT i = 0; i < old.VSInstancesCount; i++) if (old.VSInstances[i]) old.VSInstances[i]->Release();
+                deviceContext->IASetPrimitiveTopology(old.PrimitiveTopology);
+                deviceContext->IASetIndexBuffer(old.IndexBuffer, old.IndexBufferFormat, old.IndexBufferOffset); if (old.IndexBuffer) old.IndexBuffer->Release();
+                deviceContext->IASetVertexBuffers(0, 1, &old.VertexBuffer, &old.VertexBufferStride, &old.VertexBufferOffset); if (old.VertexBuffer) old.VertexBuffer->Release();
+                deviceContext->IASetInputLayout(old.InputLayout); if (old.InputLayout) old.InputLayout->Release();
+            }
         }
         void FlushFrame()
         {
@@ -360,18 +501,24 @@ namespace Lapis
             RemapSubResource(constantBuffer, &gcb, sizeof(gcb));
 
             auto& material = internalLapisCommand.material;
+            debugPrint(material->name);
+
             static ID3D11VertexShader* prevVertexShader = nullptr;
             if (prevVertexShader != material->vertexShader) {
+                debugPrint(material->vertexShader);
                 deviceContext->VSSetShader(material->vertexShader, 0, 0);
                 prevVertexShader = material->vertexShader;
             }
             static ID3D11PixelShader* prevPixelShader = nullptr;
             if (prevPixelShader != material->pixelShader) {
+                debugPrint(material->pixelShader);
                 deviceContext->PSSetShader(material->pixelShader, 0, 0);
                 prevPixelShader = material->pixelShader;
             }
 
             deviceContext->IASetPrimitiveTopology(internalLapisCommand.topology);
+            debugPrint(internalLapisCommand.vertexCount);
+            debugPrint(internalLapisCommand.startVertexLocation);
             deviceContext->Draw(internalLapisCommand.vertexCount, internalLapisCommand.startVertexLocation);
         }
         void InitDefaultShaders()
@@ -407,6 +554,16 @@ namespace Lapis
             deviceContext->Map(resource, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
             memcpy(ms.pData, data, size);
             deviceContext->Unmap(resource, NULL);
+        }
+
+        HRESULT GetDeviceAndCtxFromSwapchain(IDXGISwapChain* pSwapChain, ID3D11Device** ppDevice, ID3D11DeviceContext** ppContext)
+        {
+            HRESULT ret = pSwapChain->GetDevice(__uuidof(ID3D11Device), (PVOID*)ppDevice);
+
+            if (SUCCEEDED(ret))
+                (*ppDevice)->GetImmediateContext(ppContext);
+
+            return ret;
         }
 	}
 }

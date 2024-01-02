@@ -10,10 +10,15 @@ namespace Lapis
 	Transform mainCamera;
 
 
-	void InitLapisInternal(ID3D11Device* device, ID3D11DeviceContext* deviceContext, HWND hwnd)
+	void InitLapisInternal(IDXGISwapChain* swapchain)
 	{
-		std::cout << "hwnd: " << hwnd << "\n";
-		Backend::InitBackendInternal(device, deviceContext, hwnd);
+		std::cout << "Initting via SwapChain : " << swapchain << "\n";
+		Backend::InitBackendInternal(swapchain);
+	}
+
+	void WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+	{
+		Backend::WndProcHandler(hwnd, msg, wParam, lParam);
 	}
 
 	void NewFrame()
@@ -33,5 +38,13 @@ namespace Lapis
 		Backend::CleanD3D11();
 	}
 
+	void DestroyViews()
+	{
+		Backend::DestroyViews();
+	}
+	void CreateViews(IDXGISwapChain* swapchain)
+	{
+		Backend::CreateViews(swapchain);
+	}
 
 }

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <thread>
 
+
 #include <d3d11.h>
 #include <DirectXMath.h>
 #include <DirectXPackedVector.h>
@@ -104,9 +105,17 @@ void mainThread(HMODULE hModule)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
+
         ejecting = true;
         std::cout << "ejecting\n";
-        while (!presentReset) { if (GetAsyncKeyState('L')) { presentReset = true; std::cout << "force ejecting\n"; } }
+        while (!presentReset) {
+            std::cout << "waiting for present                   \'L\' to force eject\n";
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            if (GetAsyncKeyState('L')) {
+                presentReset = true;
+                std::cout << "force ejecting\n";
+            }
+        }
 
         VMTEntryHook(VMTaddr, (size_t)IDXGISwapChainVMT::Present, origPresent);
         VMTEntryHook(VMTaddr, (size_t)IDXGISwapChainVMT::ResizeBuffers, origResizeBuffers);

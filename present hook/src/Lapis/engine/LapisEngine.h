@@ -15,11 +15,17 @@ namespace Lapis
 	extern Transform mainCamera;
 
 
-	void InitLapisInternal(ID3D11Device* device, ID3D11DeviceContext* deviceContext, HWND hwnd);
+	void InitLapisInternal(IDXGISwapChain* swapchain);
+
+	void WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	void NewFrame();
 	void RenderFrame();
 	void FlushFrame();
 
 	void CleanLapis();
+
+	void DestroyViews();
+	void CreateViews(IDXGISwapChain* swapchain);
+
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Windows.h>
 #include <d3d11.h>
 #include <memory>
 #include <string>
@@ -69,9 +70,20 @@ namespace Lapis
 
 	struct Vec4
 	{
-		float x, y, z, w;
+		float x, y;
+		union
+		{
+			float z;
+			float width;
+		};
+		union
+		{
+			float w;
+			float height;
+		};
 
 		Vec4 operator+(const Vec4& other) const;
+		Vec4& operator=(const RECT& other);
 
 		constexpr Vec4() :
 			x(0), y(0), z(0), w(0)

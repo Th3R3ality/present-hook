@@ -38,13 +38,19 @@ namespace Lapis
 
 		extern std::unordered_map<std::string, std::shared_ptr<InternalMaterial>> builtinMaterials;
 		
-		void InitBackendInternal(ID3D11Device* _device, ID3D11DeviceContext* _deviceContext, HWND _hwnd);
-		void InitD3D11Internal();
+		void InitBackendInternal(IDXGISwapChain* _swapchain);
+		void InitD3D11Internal(IDXGISwapChain* _swapchain);
+		void SetupD3D11State();
 		void CleanD3D11();
+
+		void WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 		void NewFrame();
 		void RenderFrame();
 		void FlushFrame();
+
+		void DestroyViews();
+		void CreateViews(IDXGISwapChain* _swapchain);
 
 		void PushVertex(Vertex vert);
 		inline void PushVertex(Vec3 pos, Color col, Vec2 uv, Vec3 normal) { PushVertex(Vertex(pos, col, uv, normal)); };
@@ -54,5 +60,6 @@ namespace Lapis
 		void DrawCommand(InternalLapisCommand internalLapisCommand);
 		void InitDefaultShaders();
 		void RemapSubResource(ID3D11Resource* resource, void* data, size_t size);
+		HRESULT GetDeviceAndCtxFromSwapchain(IDXGISwapChain* pSwapChain, ID3D11Device** ppDevice, ID3D11DeviceContext** ppContext);
 	}
 }

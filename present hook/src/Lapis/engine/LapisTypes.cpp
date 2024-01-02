@@ -119,4 +119,15 @@ namespace Lapis
 		return res;
 	}
 
+	Vec4& Vec4::operator=(const RECT& other)
+	{
+
+		x = other.left;
+		y = other.top;
+		z = other.right;
+		w = other.bottom;
+
+		return *this;
+	}
+
 }
